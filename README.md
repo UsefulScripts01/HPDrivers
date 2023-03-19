@@ -43,8 +43,3 @@ Example 2: Show all available drivers and additional software. Do not keep insta
 ```powershell
 Get-HPDrivers -DeleteInstallationFiles -SuspendBL
 ```
-
-
-
-
-
