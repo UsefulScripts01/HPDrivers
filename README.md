@@ -1,7 +1,7 @@
 # HPDrivers
 
 Update all HP device drivers with a single command - `Get-HPDrivers`
-```
+
 
 <hr>
 
@@ -17,7 +17,8 @@ Install-Module -Name HPDrivers
 
 ### How it's working?
 
-The HPDrivers module uses HP CMSL to download and install softpaqs that match the operating system version and hardware configuration.
+The HPDrivers module uses [HP CMSL](https://developers.hp.com/hp-client-management/doc/client-management-script-library) to download and install softpaqs that match the operating system version and hardware configuration.
+
 
 <hr>
 
@@ -38,9 +39,9 @@ Example 1: Simple, just download and install all drivers.
 Get-HPDrivers -NoPrompt
 ```
 
-Example 2: Show all available drivers and additional software. Do not keep installation files.
+Example 2: Show all available drivers and additional software. Do not keep installation files. Suspend BitLocker pin for next reboot.
 ```powershell
-Get-HPDrivers -DeleteInstallationFiles
+Get-HPDrivers -DeleteInstallationFiles -SuspendBL
 ```
 
 
