@@ -1,6 +1,7 @@
 # HPDrivers
 
-Update all HP device drivers with a single command.
+Update all HP device drivers with a single command - `Get-HPDrivers`
+```
 
 <hr>
 
@@ -17,12 +18,6 @@ Install-Module -Name HPDrivers
 ### How it's working?
 
 The HPDrivers module uses HP CMSL to download and install softpaqs that match the operating system version and hardware configuration.
-
-<hr>
-
-### How to use it?
-
- (without HP additional software) 
 
 <hr>
 
