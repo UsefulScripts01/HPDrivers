@@ -1,25 +1,16 @@
 function Get-HPDrivers {
 
     param(
-        [Parameter(Mandatory = $false)] [string]$DriversAndSoftware,
-        [Parameter(Mandatory = $false)] [string]$BIOS,
-        [Parameter(Mandatory = $false)] [string]$DeleteInstallationFiles,
-        [Parameter(Mandatory = $false)] [string]$UninstallHPCMSL
+        [Parameter(Mandatory = $false)] [switch]$NoPrompt,
+        [Parameter(Mandatory = $false)] [switch]$ShowSoftware,
+        [Parameter(Mandatory = $false)] [switch]$DeleteInstallationFiles,
+        [Parameter(Mandatory = $false)] [switch]$UninstallHPCMSL,
+        [Parameter(Mandatory = $false)] [switch]$SuspendBL
     )
 
     # if machine manufacturer is HP
-    $Bios = (Get-CimInstance -ClassName Win32_ComputerSystem).Manufacturer
-    if (($Bios -match "HP") -or ($Bios -match "Hewlett-Packard")) {
-
-        $ProgressPreference = "SilentlyContinue"
-        $ConfirmPreference = "None"
-
-        # create path
-        $Model = (Get-CimInstance -ClassName win32_ComputerSystem).Model
-        if (!(Test-Path -Path "C:\Temp\$Model")) {
-            New-Item -ItemType Directory -Path "C:\Temp\$Model" -Force
-        }
-        Set-Location -Path "C:\Temp\$Model"
+    $Manufacturer = (Get-CimInstance -ClassName Win32_ComputerSystem).Manufacturer
+    if (($Manufacturer -match "HP") -or ($Manufacturer -match "Hewlett-Packard")) {
 
         # install HPCMSL
         if (!(Get-CimInstance -ClassName Win32_InstalledWin32Program).Name -contains 'HP Client Management Script Library') {
@@ -28,28 +19,35 @@ function Get-HPDrivers {
         }
     
         # check available drivers
-        if ($DriversAndSoftware) { $DriverList = Get-SoftpaqList -Category BIOS, Diagnostic, Dock, Driver, Software, Utility | Select-Object -Property id, name, version, Size, ReleaseDate | Out-GridView -Title "Select driver(s):" -OutputMode Multiple } # all
-        elseif ($BIOS) { $DriverList = Get-SoftpaqList -Category BIOS | Select-Object -Property id, name, version, Size, ReleaseDate | Out-GridView -Title "Select driver(s):" -OutputMode Multiple }
-        else { $DriverList = Get-SoftpaqList -Category BIOS, Driver | Select-Object -Property id, name, version, Size, ReleaseDate | Out-GridView -Title "Select driver(s):" -OutputMode Multiple } # default
-
-        Write-Host "`n"
-        Write-Host " Tool will install the selected drivers. This may take 10-15 minutes. Please wait.. " -BackgroundColor DarkGreen
-        Write-Host "`n"
-        # download and install selected drivers
-        foreach ($Number in $DriverList.id) {
-            Get-Softpaq -Number $Number -Overwrite no -Action silentinstall -ErrorAction SilentlyContinue
+        if (!$NoPrompt) {
+            if ($ShowSoftware) { Get-SoftpaqList -Category BIOS, Diagnostic, Dock, Driver, Software, Utility | Select-Object -Property id, name, version, Size, ReleaseDate | Out-GridView -Title "Select driver(s):" -OutputMode Multiple | Export-Csv -Path "C:\Temp\SpList.csv" } # all
+            else { Get-SoftpaqList -Category BIOS, Driver | Select-Object -Property id, name, version, Size, ReleaseDate | Out-GridView -Title "Select driver(s):" -OutputMode Multiple | Export-Csv -Path "C:\Temp\SpList.csv" } # default
+        }
+        if ($NoPrompt) {
+            if ($ShowSoftware) { Get-SoftpaqList -Category BIOS, Diagnostic, Dock, Driver, Software, Utility | Export-Csv -Path "C:\Temp\SpList.csv" } # all
+            else { Get-SoftpaqList -Category BIOS, Driver | Export-Csv -Path "C:\Temp\SpList.csv" } # default
         }
 
-        if ($DriverList) {
-            Write-Host "`n"
-            Write-Host " The following drivers have been installed: " -ForegroundColor White -BackgroundColor DarkGreen
-            $DriverList | Format-Table -AutoSize
+        $SpList = Import-Csv -Path "C:\Temp\SpList.csv"
+        $SpList | Select-Object -Property id, name, version, Size, ReleaseDate | Format-Table -AutoSize
+
+        # create path
+        $Model = (Get-CimInstance -ClassName win32_ComputerSystem).Model
+        if (!(Test-Path -Path "C:\Temp\$Model")) {
+            New-Item -ItemType Directory -Path "C:\Temp\$Model" -Force
+        }
+        Set-Location -Path "C:\Temp\$Model"
+          
+        # download and install selected drivers
+        Write-Host "`nThe script will install the following drivers. Please wait..`n" -ForegroundColor White -BackgroundColor DarkGreen
+        foreach ($Number in $SpList.id) {
+            Get-Softpaq -Number $Number -Overwrite no -Action silentinstall -ErrorAction SilentlyContinue
         }
 
         # remove installation files
         if ($DeleteInstallationFiles -and (Test-Path -Path "C:\Temp\$Model")) {
             Set-Location -Path $HOME
-            Remove-Item -Path "C:\Temp\$Model" -Recurse -Force -Verbose
+            Remove-Item -Path "C:\Temp\$Model" -Recurse -Force
         }
 
         # uninstall HP Client Management Script Library
@@ -58,12 +56,10 @@ function Get-HPDrivers {
         }
         
         # disable BitLocker pin for one restart (BIOS update)
-        if ((Get-BitLockerVolume -MountPoint "C:").VolumeStatus -ne "FullyDecrypted") {
+        if ($SuspendBL -and ((Get-BitLockerVolume -MountPoint "C:").VolumeStatus -ne "FullyDecrypted")) {
             Suspend-BitLocker -MountPoint "C:" -RebootCount 1
         }
         Set-Location -Path $HOME
     }
 }
-# Get-HPDrivers
-
 Export-ModuleMember -Function Get-HPDrivers
