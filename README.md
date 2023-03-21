@@ -19,6 +19,11 @@ Install-Module -Name HPDrivers
 
 The HPDrivers module uses [HP CMSL](https://developers.hp.com/hp-client-management/doc/client-management-script-library) to download and install softpaqs that match the operating system version and hardware configuration.
 
+* Open PowerShell or Windows Terminal as an administrator
+* Run `Get-HPDrivers`
+* Select the drivers to install
+
+![SelectDrivers](res/SelectDrivers.png)
 
 <hr>
 
