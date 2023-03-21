@@ -13,11 +13,10 @@ function Get-HPDrivers {
     if (($Manufacturer -match "HP") -or ($Manufacturer -match "Hewlett-Packard")) {
 
         # install HPCMSL
-        if (!(Test-Path -Path "C:\Program Files\WindowsPowerShell\HP.CMSL.UninstallerData\unins000.exe" )) {
-            Invoke-WebRequest -Uri "https://hpia.hpcloud.hp.com/downloads/cmsl/hp-cmsl-1.6.8.exe" -OutFile "C:\Temp\hpcmsl.exe"
-            Start-Process -FilePath "C:\Temp\hpcmsl.exe" -Wait -ArgumentList "/VERYSILENT"
-        }
-    
+        Invoke-WebRequest -Uri "https://hpia.hpcloud.hp.com/downloads/cmsl/hp-cmsl-1.6.9.exe" -OutFile "C:\Temp\hpcmsl.exe"
+        Start-Process -FilePath "C:\Temp\hpcmsl.exe" -Wait -ArgumentList "/VERYSILENT"
+        Start-Sleep -Seconds 5
+
         # check available drivers
         if (!$NoPrompt) {
             if ($ShowSoftware) { Get-SoftpaqList -Category BIOS, Diagnostic, Dock, Driver, Software, Utility | Select-Object -Property id, name, version, Size, ReleaseDate | Out-GridView -Title "Select driver(s):" -OutputMode Multiple | Export-Csv -Path "C:\Temp\SpList.csv" } # all
@@ -37,7 +36,7 @@ function Get-HPDrivers {
             New-Item -ItemType Directory -Path "C:\Temp\$Model" -Force
         }
         Set-Location -Path "C:\Temp\$Model"
-          
+
         # download and install selected drivers
         Write-Host "`nThe script will install the following drivers. Please wait..`n" -ForegroundColor White -BackgroundColor DarkGreen
         foreach ($Number in $SpList.id) {
@@ -54,7 +53,7 @@ function Get-HPDrivers {
         if ($UninstallHPCMSL -and ((Get-CimInstance -ClassName Win32_InstalledWin32Program).Name -contains 'HP Client Management Script Library')) {
             Start-Process -FilePath "C:\Program Files\WindowsPowerShell\HP.CMSL.UninstallerData\unins000.exe" -Wait -ArgumentList "/VERYSILENT"
         }
-        
+
         # disable BitLocker pin for one restart (BIOS update)
         if ($SuspendBL -and ((Get-BitLockerVolume -MountPoint "C:").VolumeStatus -ne "FullyDecrypted")) {
             Suspend-BitLocker -MountPoint "C:" -RebootCount 1
