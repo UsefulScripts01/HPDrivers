@@ -13,8 +13,8 @@ function Get-HPDrivers {
     if (($Manufacturer -match "HP") -or ($Manufacturer -match "Hewlett-Packard")) {
 
         # install HPCMSL
-        if (!(Get-CimInstance -ClassName Win32_InstalledWin32Program).Name -contains 'HP Client Management Script Library') {
-            Invoke-WebRequest -Uri "https://hpia.hpcloud.hp.com/downloads/cmsl/hp-cmsl-1.6.8.exe" -OutFile "C:\Temp\hpcmsl.exe" -Verbose
+        if (!(Test-Path -Path "C:\Program Files\WindowsPowerShell\HP.CMSL.UninstallerData\unins000.exe" )) {
+            Invoke-WebRequest -Uri "https://hpia.hpcloud.hp.com/downloads/cmsl/hp-cmsl-1.6.8.exe" -OutFile "C:\Temp\hpcmsl.exe"
             Start-Process -FilePath "C:\Temp\hpcmsl.exe" -Wait -ArgumentList "/VERYSILENT"
         }
     
