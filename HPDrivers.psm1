@@ -27,6 +27,7 @@ function Get-HPDrivers {
             else { Get-SoftpaqList -Category BIOS, Driver | Export-Csv -Path "C:\Temp\SpList.csv" } # default
         }
 
+        Write-Host "`nThe script will install the following drivers. Please wait..`n" -ForegroundColor White -BackgroundColor DarkGreen
         $SpList = Import-Csv -Path "C:\Temp\SpList.csv"
         $SpList | Select-Object -Property id, name, version, Size, ReleaseDate | Format-Table -AutoSize
 
@@ -38,9 +39,15 @@ function Get-HPDrivers {
         Set-Location -Path "C:\Temp\$Model"
 
         # download and install selected drivers
-        Write-Host "`nThe script will install the following drivers. Please wait..`n" -ForegroundColor White -BackgroundColor DarkGreen
+        $DateTime = Get-Date -Format "dd.MM.yyyy HH:mm"
         foreach ($Number in $SpList.id) {
-            Get-Softpaq -Number $Number -Overwrite no -Action silentinstall -ErrorAction SilentlyContinue
+            try {
+                Get-Softpaq -Number $Number -Overwrite no -Action silentinstall -ErrorAction SilentlyContinue
+            }
+            catch {
+                Write-Output $Error
+                Add-Content -Value "$DateTime - $Error" -Path "~\Desktop\HPDriversErrorLog.txt" -Force
+            }
         }
 
         # remove installation files
