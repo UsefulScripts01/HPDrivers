@@ -27,10 +27,12 @@ function Get-HPDrivers {
             else { Get-SoftpaqList -Category BIOS, Driver | Export-Csv -Path "C:\Temp\SpList.csv" } # default
         }
 
-        Write-Host "`nThe script will install the following drivers. Please wait..`n" -ForegroundColor White -BackgroundColor DarkGreen
-        $SpList = Import-Csv -Path "C:\Temp\SpList.csv"
-        $SpList | Select-Object -Property id, name, version, Size, ReleaseDate | Format-Table -AutoSize
-
+        if (Test-Path -Path "C:\Temp\SpList.csv") {
+            Write-Host "`nThe script will install the following drivers. Please wait..`n" -ForegroundColor White -BackgroundColor DarkGreen
+            $SpList = Import-Csv -Path "C:\Temp\SpList.csv"
+            # $SpList | Select-Object -Property id, name, version, Size, ReleaseDate | Format-Table -AutoSize
+        }
+        
         # create path
         $Model = (Get-CimInstance -ClassName win32_ComputerSystem).Model
         if (!(Test-Path -Path "C:\Temp\$Model")) {
@@ -39,15 +41,18 @@ function Get-HPDrivers {
         Set-Location -Path "C:\Temp\$Model"
 
         # download and install selected drivers
-        $DateTime = Get-Date -Format "dd.MM.yyyy HH:mm"
+        $Row = 0
         foreach ($Number in $SpList.id) {
             try {
                 Get-Softpaq -Number $Number -Overwrite no -Action silentinstall -ErrorAction SilentlyContinue
+                Write-Host "Success!" -ForegroundColor Green
+                $SpList[$Row] | Format-Table -AutoSize -HideTableHeaders
             }
             catch {
-                Write-Output $Error
-                Add-Content -Value "$DateTime - $Error" -Path "~\Desktop\HPDriversErrorLog.txt" -Force
+                Write-Warning "Failed!"
+                $SpList[$Row] | Format-Table -HideTableHeaders
             }
+            $Row ++
         }
 
         # remove installation files
