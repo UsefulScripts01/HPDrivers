@@ -1,5 +1,4 @@
 function Get-HPDrivers {
-
     param(
         [Parameter(Mandatory = $false)] [switch]$NoPrompt,
         [Parameter(Mandatory = $false)] [switch]$ShowSoftware,
@@ -13,9 +12,18 @@ function Get-HPDrivers {
     if (($Manufacturer -match "HP") -or ($Manufacturer -match "Hewlett-Packard")) {
 
         # install HPCMSL
-        Invoke-WebRequest -Uri "https://hpia.hpcloud.hp.com/downloads/cmsl/hp-cmsl-1.6.9.exe" -OutFile "C:\Temp\hpcmsl.exe"
-        Start-Process -FilePath "C:\Temp\hpcmsl.exe" -Wait -ArgumentList "/VERYSILENT"
-        Start-Sleep -Seconds 5
+        if (!(Test-Path -Path "C:\Program Files\WindowsPowerShell\Modules\HP.Softpaq\HP.Softpaq.psm1")) {
+            Invoke-WebRequest -Uri "https://hpia.hpcloud.hp.com/downloads/cmsl/hp-cmsl-1.6.9.exe" -OutFile "C:\Temp\hpcmsl.exe"
+            Start-Process -FilePath "C:\Temp\hpcmsl.exe" -Wait -ArgumentList "/VERYSILENT"
+            Start-Sleep -Seconds 5
+        }
+
+        # create path
+        $Model = (Get-CimInstance -ClassName win32_ComputerSystem).Model
+        if (!(Test-Path -Path "C:\Temp\$Model")) {
+            New-Item -ItemType Directory -Path "C:\Temp\$Model" -Force
+        }
+        Set-Location -Path "C:\Temp\$Model"
 
         # check available drivers
         if (!$NoPrompt) {
@@ -30,29 +38,12 @@ function Get-HPDrivers {
         if (Test-Path -Path "C:\Temp\SpList.csv") {
             Write-Host "`nThe script will install the following drivers. Please wait..`n" -ForegroundColor White -BackgroundColor DarkGreen
             $SpList = Import-Csv -Path "C:\Temp\SpList.csv"
-            # $SpList | Select-Object -Property id, name, version, Size, ReleaseDate | Format-Table -AutoSize
+            $SpList | Format-Table -AutoSize
         }
-        
-        # create path
-        $Model = (Get-CimInstance -ClassName win32_ComputerSystem).Model
-        if (!(Test-Path -Path "C:\Temp\$Model")) {
-            New-Item -ItemType Directory -Path "C:\Temp\$Model" -Force
-        }
-        Set-Location -Path "C:\Temp\$Model"
 
         # download and install selected drivers
-        $Row = 0
         foreach ($Number in $SpList.id) {
-            try {
-                Get-Softpaq -Number $Number -Overwrite no -Action silentinstall -ErrorAction SilentlyContinue
-                Write-Host "Success!" -ForegroundColor Green
-                $SpList[$Row] | Format-Table -AutoSize -HideTableHeaders
-            }
-            catch {
-                Write-Warning "Failed!"
-                $SpList[$Row] | Format-Table -HideTableHeaders
-            }
-            $Row ++
+            Get-Softpaq -Number $Number -Overwrite no -Action silentinstall -ErrorAction SilentlyContinue
         }
 
         # remove installation files
