@@ -43,7 +43,17 @@ function Get-HPDrivers {
 
         # download and install selected drivers
         foreach ($Number in $SpList.id) {
-            Get-Softpaq -Number $Number -Overwrite no -Action silentinstall -ErrorAction SilentlyContinue
+            try {
+                Get-Softpaq -Number $Number -Action silentinstall
+                $Info = Get-SoftpaqMetadata -Number $Number | Out-SoftpaqField -Field Title
+                $Info += ' - INSTALLED'
+                Write-Host $Info -ForegroundColor Green
+            }
+            catch {
+                $Info = Get-SoftpaqMetadata -Number $Number | Out-SoftpaqField -Field Title
+                $Info += ' - FAILED!'
+                Write-Host $Info -ForegroundColor Red
+            }
         }
 
         # remove installation files
