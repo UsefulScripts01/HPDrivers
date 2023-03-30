@@ -27,17 +27,16 @@ function Get-HPDrivers {
 
         # check available drivers
         if (!$NoPrompt) {
-            if ($ShowSoftware) { Get-SoftpaqList -Category BIOS, Diagnostic, Dock, Driver, Software, Utility | Select-Object -Property id, name, version, Size, ReleaseDate | Out-GridView -Title "Select driver(s):" -OutputMode Multiple | Export-Csv -Path "C:\Temp\SpList.csv" } # all
-            else { Get-SoftpaqList -Category BIOS, Driver | Select-Object -Property id, name, version, Size, ReleaseDate | Out-GridView -Title "Select driver(s):" -OutputMode Multiple | Export-Csv -Path "C:\Temp\SpList.csv" } # default
+            if ($ShowSoftware) { $SpList = Get-SoftpaqList -Category BIOS, Diagnostic, Dock, Driver, Software, Utility | Select-Object -Property id, Name, Version, Size, ReleaseDate | Out-GridView -Title "Select driver(s):" -OutputMode Multiple } # all
+            else { $SpList = Get-SoftpaqList -Category BIOS, Driver | Select-Object -Property id, Name, Version, Size, ReleaseDate | Out-GridView -Title "Select driver(s):" -OutputMode Multiple } # default
         }
         if ($NoPrompt) {
-            if ($ShowSoftware) { Get-SoftpaqList -Category BIOS, Diagnostic, Dock, Driver, Software, Utility | Export-Csv -Path "C:\Temp\SpList.csv" } # all
-            else { Get-SoftpaqList -Category BIOS, Driver | Export-Csv -Path "C:\Temp\SpList.csv" } # default
+            if ($ShowSoftware) { $SpList = Get-SoftpaqList -Category BIOS, Diagnostic, Dock, Driver, Software, Utility } # all
+            else { $SpList = Get-SoftpaqList -Category BIOS, Driver } # default
         }
 
-        if (Test-Path -Path "C:\Temp\SpList.csv") {
+        if ($SpList) {
             Write-Host "`nThe script will install the following drivers. Please wait..`n" -ForegroundColor White -BackgroundColor DarkGreen
-            $SpList = Import-Csv -Path "C:\Temp\SpList.csv"
             $SpList | Format-Table -AutoSize
         }
 
