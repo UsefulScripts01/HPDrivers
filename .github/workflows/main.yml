@@ -1,0 +1,4 @@
+- name: PowerShell virtual environment
+  # You may pin to the exact commit or the version.
+  # uses: Tyler887/PS-Runner@fef5dec7a99030c203e89faee47f358fa09c3a99
+  uses: Tyler887/PS-Runner@1.4.1
