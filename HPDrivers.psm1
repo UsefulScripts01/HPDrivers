@@ -1,7 +1,7 @@
 
 
 function Get-HPDrivers {
-        <#
+    <#
     .SYNOPSIS
         Update all HP device drivers with a single command - Get-HPDrivers.
 
