@@ -76,7 +76,7 @@ function Get-HPDrivers {
 
         if ($SpList) {
             Write-Host "`nThe script will install the following drivers. Please wait..`n" -ForegroundColor White -BackgroundColor DarkGreen
-            $SpList | Format-Table -AutoSize
+            $SpList | Select-Object -Property id, Name, Version, Size, ReleaseDate | Format-Table -AutoSize
         }
 
         # download and install selected drivers
