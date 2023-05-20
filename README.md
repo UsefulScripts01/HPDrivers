@@ -39,12 +39,12 @@ The HPDrivers module uses [HP CMSL](https://developers.hp.com/hp-client-manageme
 
 ### Examples
 
-Example 1: Simple, just download and install all drivers.
+Example 1: Simple, just download and install all drivers and BIOS.
 ```powershell
 Get-HPDrivers -NoPrompt
 ```
 
-Example 2: Show all available drivers and additional software. Do not keep installation files. Suspend BitLocker pin for next reboot.
+Example 2: Show all available drivers and additional software. Do not keep installation files. Suspend the BitLocker pin on next reboot.
 ```powershell
 Get-HPDrivers -DeleteInstallationFiles -SuspendBL
 ```
