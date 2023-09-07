@@ -23,7 +23,13 @@ The HPDrivers module uses [HP CMSL](https://developers.hp.com/hp-client-manageme
 * Run `Get-HPDrivers`
 * Select the drivers to install
 
-![SelectDrivers](res/SelectDrivers.png)
+<br>
+
+<p align="center"><img src="res/SelectDrivers.png" alt="Select Drivers" width="600"/></p>
+
+<br>
+
+<p align="center"><img src="res/InstallationProcess.png" alt="Installation Process" width="600"/></p>
 
 <br>
 
