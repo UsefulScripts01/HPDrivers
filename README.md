@@ -10,6 +10,7 @@ Update all HP device drivers with a single command - `Get-HPDrivers`
 Copy the code from the area below and paste it into PowerShell Admin (or Windows Terminal).
 
 ```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Force
 Install-Module -Name HPDrivers -Force
 ```
 
@@ -62,6 +63,7 @@ Get-HPDrivers -ShowSoftware -DeleteInstallationFiles -SuspendBL
 Example 3: Automatic driver installation. Can be part of a deployment script.
 ```powershell
 Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Force
 Install-Module -Name HPDrivers -Force
 Get-HPDrivers -NoPrompt -DeleteInstallationFiles
 ```
