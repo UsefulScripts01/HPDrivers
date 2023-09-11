@@ -62,8 +62,8 @@ Get-HPDrivers -ShowSoftware -DeleteInstallationFiles -SuspendBL
 
 Example 3: Automatic driver installation. Can be part of a deployment script.
 ```powershell
-Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Force
+Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
 Install-Module -Name HPDrivers -Force
 Get-HPDrivers -NoPrompt -DeleteInstallationFiles
 ```
