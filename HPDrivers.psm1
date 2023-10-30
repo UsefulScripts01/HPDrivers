@@ -12,6 +12,9 @@ function Get-HPDrivers {
     .PARAMETER ShowSoftware
         Show additional HP software in the driver list
 
+    .PARAMETER Overwrite
+        Install the drivers even if the current driver version is the same
+
     .PARAMETER DeleteInstallationFiles
         Delete the HP SoftPaq installation files stored in C:\Temp
 
