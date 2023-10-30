@@ -38,6 +38,7 @@ The HPDrivers module uses [HP CMSL](https://developers.hp.com/hp-client-manageme
 
 `-NoPrompt` [switch] - Install all drivers and update BIOS \
 `-ShowSoftware` [switch] - Show additional HP software in the driver list \
+`-Overwrite` [switch] - Install the drivers even if the current driver version is the same \
 `-DeleteInstallationFiles` [switch] - Delete the HP SoftPaq installation files stored in C:\Temp \
 `-UninstallHPCMSL` [switch] - Uninstall HP CMSL at the end of installation process \
 `-SuspendBL` [switch]  - Suspend BitLocker protection for one restart
@@ -60,7 +61,14 @@ Get-HPDrivers -ShowSoftware -DeleteInstallationFiles -SuspendBL
 
 <br>
 
-Example 3: Automatic driver installation. Can be part of a deployment script.
+Example 3: Download and install all drivers and BIOS, even if the current driver version is the same.
+```powershell
+Get-HPDrivers -NoPrompt -Overwrite
+```
+
+<br>
+
+Example 4: Automatic driver installation. Can be part of a deployment script.
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Force
 Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force

@@ -41,6 +41,7 @@ function Get-HPDrivers {
         [Parameter(Mandatory = $false)] [switch]$ShowSoftware,
         [Parameter(Mandatory = $false)] [switch]$DeleteInstallationFiles,
         [Parameter(Mandatory = $false)] [switch]$UninstallHPCMSL,
+        [Parameter(Mandatory = $false)] [switch]$Overwrite,
         [Parameter(Mandatory = $false)] [switch]$SuspendBL
     )
 
@@ -66,8 +67,14 @@ function Get-HPDrivers {
         powercfg -change -standby-timeout-dc 0
         powercfg -change -standby-timeout-ac 0
 
+        # create path
+        if (!(Test-Path -Path "C:\Temp\HPDrivers")) {
+            New-Item -ItemType Directory -Path "C:\Temp\HPDrivers" -Force
+        }
+        Set-Location -Path "C:\Temp\HPDrivers"
+
         # install HPCMSL
-        if (!(Test-Path -Path "C:\Program Files\WindowsPowerShell\Modules\HP.Softpaq\HP.Softpaq.psm1")) {
+        if ((Get-CimInstance -ClassName Win32_InstalledWin32Program).Name -notcontains 'HP Client Management Script Library') {
             $ProgressPreference = "SilentlyContinue"
             Invoke-WebRequest -Uri "https://hpia.hpcloud.hp.com/downloads/cmsl/hp-cmsl-1.6.10.exe" -OutFile "C:\Temp\hpcmsl.exe"
             $ProgressPreference = "Continue"
@@ -75,47 +82,75 @@ function Get-HPDrivers {
             Start-Sleep -Seconds 5
         }
 
-        # create path
-        $Model = (Get-CimInstance -ClassName win32_ComputerSystem).Model
-        if (!(Test-Path -Path "C:\Temp\$Model")) {
-            New-Item -ItemType Directory -Path "C:\Temp\$Model" -Force
-        }
-        Set-Location -Path "C:\Temp\$Model"
+        if (!$ShowSoftware) { $AvailableDrivers = Get-SoftpaqList -Category BIOS, Driver }
+        if ($ShowSoftware) { $AvailableDrivers = Get-SoftpaqList -Category BIOS, Driver, Diagnostic, Dock, Software, Utility }
 
         # check available drivers
-        if (!$NoPrompt) {
-            if ($ShowSoftware) { $SpList = Get-SoftpaqList -Category BIOS, Diagnostic, Dock, Driver, Software, Utility | Select-Object -Property id, Name, Version, Size, ReleaseDate | Out-GridView -Title "Select driver(s):" -OutputMode Multiple } # all
-            else { $SpList = Get-SoftpaqList -Category BIOS, Driver | Select-Object -Property id, Name, Version, Size, ReleaseDate | Out-GridView -Title "Select driver(s):" -OutputMode Multiple } # default
-        }
-        if ($NoPrompt) {
-            if ($ShowSoftware) { $SpList = Get-SoftpaqList -Category BIOS, Diagnostic, Dock, Driver, Software, Utility } # all
-            else { $SpList = Get-SoftpaqList -Category BIOS, Driver } # default
-        }
+        if (!$NoPrompt) { $SpList = $AvailableDrivers | Select-Object -Property id, Name, Version, Size, ReleaseDate | Out-GridView -Title "Select driver(s):" -OutputMode Multiple }
+        if ($NoPrompt) { $SpList = $AvailableDrivers }
 
+        # Show list of available drivers
         if ($SpList) {
             Write-Host "`nThe script will install the following drivers. Please wait..`n" -ForegroundColor White -BackgroundColor DarkGreen
             $SpList | Select-Object -Property id, Name, Version, Size, ReleaseDate | Format-Table -AutoSize
         }
 
+        $Date = Get-Date -Format "dd.MM.yyyy"
+        $HR = "-" * 100
+        $Line = $Date + " " + $HR
+        $Line | Out-File -FilePath "C:\Temp\InstalledHPDrivers.log" -Append
+
         # download and install selected drivers
         foreach ($Number in $SpList.id) {
-            try {
-                Get-Softpaq -Number $Number -Action silentinstall
-                $Info = Get-SoftpaqMetadata -Number $Number | Out-SoftpaqField -Field Title
-                $Info += ' - INSTALLED'
-                Write-Host $Info -ForegroundColor Green
+            $AvailableSpVersion = Get-SoftpaqMetadata -Number $Number | Out-SoftpaqField -Field Version
+            $InstalledSpVersion = 0
+
+            # Get the version of the installed softpaq package
+            if (!$Overwrite) {
+                $CvaFile = Get-ChildItem -Path "C:\SWSetup\$Number" -Filter "*.cva" -Recurse
+                if ($CvaFile) {
+                    $CvaContent = Get-Content -Path $CvaFile.VersionInfo.FileName
+                    $InstalledSpVersion = ($CvaContent | Select-String -Pattern "^VendorVersion").ToString().Split('=')[1]
+                }
+
+                if (Test-Path -Path "C:\SWSetup\$Number\version.txt") {
+                    $InstalledSpVersion = Get-Content -Path "C:\SWSetup\$Number\version.txt" -ErrorAction SilentlyContinue
+                }
             }
-            catch {
+
+            # Install selected packages - do not overwrite
+            if ($AvailableSpVersion -gt $InstalledSpVersion) {
+                try {
+                    Get-Softpaq -Number $Number -Action silentinstall -MaxRetries 2
+                    $AvailableSpVersion | Out-File -FilePath "C:\SWSetup\$Number\version.txt"
+
+                    $Info = Get-SoftpaqMetadata -Number $Number | Out-SoftpaqField -Field Title
+                    $DateTime = Get-Date -Format "dd.MM.yyyy HH:mm"
+                    "$DateTime - $Number - $Info - $AvailableSpVersion" | Out-File -FilePath "C:\Temp\InstalledHPDrivers.log" -Append
+
+                    $Info += ' - ' + $Number + ' - INSTALLED'
+                    Write-Host $Info -ForegroundColor Green
+                }
+
+                catch {
+                    $Info = Get-SoftpaqMetadata -Number $Number | Out-SoftpaqField -Field Title
+                    $Info += ' - ' + $Number + ' - FAILED!'
+                    Write-Host $Info -ForegroundColor Red
+                }
+            }
+
+            else {
+                $AvailableSpVersion | Out-File -FilePath "C:\SWSetup\$Number\version.txt"
                 $Info = Get-SoftpaqMetadata -Number $Number | Out-SoftpaqField -Field Title
-                $Info += ' - FAILED!'
-                Write-Host $Info -ForegroundColor Red
+                $Info += ' - ' + $Number + ' - LATEST VERSION ALREADY INSTALLED'
+                Write-Host $Info -ForegroundColor Blue
             }
         }
 
         # remove installation files
-        if ($DeleteInstallationFiles -and (Test-Path -Path "C:\Temp\$Model")) {
+        if ($DeleteInstallationFiles -and (Test-Path -Path "C:\Temp\HPDrivers")) {
             Set-Location -Path $HOME
-            Remove-Item -Path "C:\Temp\$Model" -Recurse -Force
+            Remove-Item -Path "C:\Temp\HPDrivers" -Recurse -Force
         }
 
         # uninstall HP Client Management Script Library
@@ -127,7 +162,6 @@ function Get-HPDrivers {
         if ($SuspendBL -and ((Get-BitLockerVolume -MountPoint "C:").VolumeStatus -ne "FullyDecrypted")) {
             Suspend-BitLocker -MountPoint "C:" -RebootCount 1
         }
-        Set-Location -Path $HOME
 
         # Revert to the previous (user) values
         powercfg -change -monitor-timeout-dc $DisplayTimeoutDC
