@@ -39,6 +39,7 @@ function Get-HPDrivers {
         Show all available drivers and additional software. Do not keep installation files. Suspend BitLocker pin for next reboot.
     #>
 
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory = $false)] [switch]$NoPrompt,
         [Parameter(Mandatory = $false)] [switch]$ShowSoftware,
@@ -85,8 +86,13 @@ function Get-HPDrivers {
             Start-Sleep -Seconds 5
         }
 
-        if (!$ShowSoftware) { $AvailableDrivers = Get-SoftpaqList -Category BIOS, Driver }
-        if ($ShowSoftware) { $AvailableDrivers = Get-SoftpaqList -Category BIOS, Driver, Diagnostic, Dock, Software, Utility }
+        # Set OsVer to the last supported version
+        $OsVer = (Get-Item "HKLM:SOFTWARE\Microsoft\Windows NT\CurrentVersion").GetValue('DisplayVersion').Split('h')[0]
+        if ($OsVer -gt '22') { $OsVer = '22H2' }
+
+        # Category
+        if (!$ShowSoftware) { $AvailableDrivers = Get-SoftpaqList -OsVer $OsVer -Category BIOS, Driver }
+        if ($ShowSoftware) { $AvailableDrivers = Get-SoftpaqList -OsVer $OsVer -Category BIOS, Driver, Diagnostic, Dock, Software, Utility }
 
         # check available drivers
         if (!$NoPrompt) { $SpList = $AvailableDrivers | Select-Object -Property id, Name, Version, Size, ReleaseDate | Out-GridView -Title "Select driver(s):" -OutputMode Multiple }
