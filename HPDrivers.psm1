@@ -77,24 +77,35 @@ function Get-HPDrivers {
         }
         Set-Location -Path "C:\Temp\HPDrivers"
 
-        # install HPCMSL
-        if ((Get-CimInstance -ClassName Win32_InstalledWin32Program).Name -notcontains 'HP Client Management Script Library') {
-            $ProgressPreference = "SilentlyContinue"
-            Invoke-WebRequest -Uri "https://hpia.hpcloud.hp.com/downloads/cmsl/hp-cmsl-1.6.10.exe" -OutFile "C:\Temp\hpcmsl.exe"
-            $ProgressPreference = "Continue"
-            Start-Process -FilePath "C:\Temp\hpcmsl.exe" -Wait -ArgumentList "/VERYSILENT"
-            Start-Sleep -Seconds 5
+        # Install HPCMSL
+        $LatestHPCMSL = (Find-Module -Name HPCMSL).Version
+        $InstalledHPCMSL = (Get-InstalledModule -Name HPCMSL -ErrorAction Ignore).Version
+        Write-Host "`nLatest HPCMSL: $LatestHPCMSL" -ForegroundColor Green
+        Write-Host "Installed HPCMSL: $InstalledHPCMSL `n" -ForegroundColor Green
+
+        if ($LatestHPCMSL -gt $InstalledHPCMSL) {
+            Install-PackageProvider -Name NuGet -Force
+            Install-Module -Name PowerShellGet -AllowClobber -Force -WarningAction Ignore
+            Start-Process -FilePath "powershell" -Wait -NoNewWindow {
+                Install-Module -Name HPCMSL -Force -AcceptLicense -Scope CurrentUser
+            }
+            Start-Sleep -Seconds 2
         }
 
-        # Set OsVer to the last supported version
-        $OsVer = (Get-Item "HKLM:SOFTWARE\Microsoft\Windows NT\CurrentVersion").GetValue('DisplayVersion').Split('h')[0]
-        if ($OsVer -gt '22') { $OsVer = '22H2' }
-
-        # Category
-        if (!$ShowSoftware) { $AvailableDrivers = Get-SoftpaqList -OsVer $OsVer -Category BIOS, Driver }
-        if ($ShowSoftware) { $AvailableDrivers = Get-SoftpaqList -OsVer $OsVer -Category BIOS, Driver, Diagnostic, Dock, Software, Utility }
-
-        # check available drivers
+        # Get the list of available drivers
+        try {
+            if (!$ShowSoftware) { $AvailableDrivers = Get-SoftpaqList -Category BIOS, Driver }
+            if ($ShowSoftware) { $AvailableDrivers = Get-SoftpaqList -Category BIOS, Driver, Diagnostic, Dock, Software, Utility }   
+        }
+        catch {
+            $OsVer = (Get-Item "HKLM:SOFTWARE\Microsoft\Windows NT\CurrentVersion").GetValue('DisplayVersion')
+            Write-Host "`nHPCMSL does not yet support Windows ${OsVer}!`nIf you want to download and install drivers for an older (supported) version, please provide it below..`n" -ForegroundColor Red
+            $OsVer = Read-Host -Prompt "Please provide version (e.g. 22H2, 23H2)"
+            if (!$ShowSoftware) { $AvailableDrivers = Get-SoftpaqList -OsVer $OsVer -Category BIOS, Driver }
+            if ($ShowSoftware) { $AvailableDrivers = Get-SoftpaqList -OsVer $OsVer -Category BIOS, Driver, Diagnostic, Dock, Software, Utility }   
+        }
+   
+        # Select drivers from the list of available drivers
         if (!$NoPrompt) { $SpList = $AvailableDrivers | Select-Object -Property id, Name, Version, Size, ReleaseDate | Out-GridView -Title "Select driver(s):" -OutputMode Multiple }
         if ($NoPrompt) { $SpList = $AvailableDrivers }
 
@@ -163,8 +174,11 @@ function Get-HPDrivers {
         }
 
         # uninstall HP Client Management Script Library
-        if ($UninstallHPCMSL -and ((Get-CimInstance -ClassName Win32_InstalledWin32Program).Name -contains 'HP Client Management Script Library')) {
-            Start-Process -FilePath "C:\Program Files\WindowsPowerShell\HP.CMSL.UninstallerData\unins000.exe" -Wait -ArgumentList "/VERYSILENT"
+        $HPCMSL = Get-InstalledModule -Name HPCMSL -ErrorAction Ignore
+        if ($UninstallHPCMSL -and $HPCMSL) {
+            Write-Host "`nUninstalling HPCMSL..`n" -ForegroundColor Green
+            Get-InstalledModule -Name HPCMSL | Uninstall-Module -Force -Verbose
+            Get-InstalledModule -Name "HP.*" | Uninstall-Module -Force -Verbose
         }
 
         # disable BitLocker pin for one restart (BIOS update)
