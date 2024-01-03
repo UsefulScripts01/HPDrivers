@@ -1,13 +1,39 @@
+function WriteToHPDriversLog {
+    <#
+    .SYNOPSIS
+        Collect HPDrivers module logs.
+
+    .DESCRIPTION
+        'WriteToHPDriversLog' collects log files regarding installations and errors.
+        This function will be called multiple times in the script below.
+    #>
+
+    $TimeStamp = (Get-Date).ToString('dd.MM.yyyy HH:mm:ss')
+    $Status = $Info.Status
+    $LogMessage = $TimeStamp + ' - ' + $Number + ' - ' + $Name + ' - ' + $AvailableSpVersion + ' - ' + $Status
+    $LogMessage | Out-File -FilePath "C:\Temp\InstalledHPDrivers.log" -Append
+
+    # Collect occurred errors
+    foreach ($Entry in $Error) {
+        $ErrorMessage = $TimeStamp + ' - ' + $Entry
+        $ErrorMessage | Out-File -FilePath "C:\Temp\HPDriversError.log" -Append
+    }
+    $Error.Clear()
+}
+
 function Get-HPDrivers {
     <#
     .SYNOPSIS
         Update all HP device drivers with a single command - Get-HPDrivers.
 
     .DESCRIPTION
-        The HPDrivers module uses HP CMSL to download and install softpaqs that match the operating system version and hardware configuration.
+        The HPDrivers module downloads and installs softpaqs that match the operating system version and hardware configuration.
 
     .PARAMETER NoPrompt
-         Install all drivers and update BIOS
+        Download and install all drivers
+
+    .PARAMETER OsVersion
+        Specify the operating system version (e.g. 22H2, 23H2)
 
     .PARAMETER ShowSoftware
         Show additional HP software in the driver list
@@ -15,11 +41,11 @@ function Get-HPDrivers {
     .PARAMETER Overwrite
         Install the drivers even if the current driver version is the same
 
+    .PARAMETER BIOS
+        Update the BIOS to the latest version
+
     .PARAMETER DeleteInstallationFiles
         Delete the HP SoftPaq installation files stored in C:\Temp
-
-    .PARAMETER UninstallHPCMSL
-         Uninstall HP CMSL at the end of installation process
 
     .PARAMETER SuspendBL
         Suspend BitLocker protection for one restart
@@ -32,44 +58,43 @@ function Get-HPDrivers {
 
     .EXAMPLE
         Get-HPDrivers -NoPrompt
+
         Simple, just download and install all drivers.
 
     .EXAMPLE
-        Get-HPDrivers -DeleteInstallationFiles -SuspendBL
-        Show all available drivers and additional software. Do not keep installation files. Suspend BitLocker pin for next reboot.
+        Get-HPDrivers -ShowSoftware -DeleteInstallationFiles -SuspendBL
+
+        Show a list of available drivers and additional software. The selected drivers will be installed automatically. Do not keep installation files. Suspend the BitLocker pin on next reboot.
+
+    .EXAMPLE
+        Get-HPDrivers -NoPrompt -BIOS -Overwrite
+
+        Download and install all drivers and BIOS, even if the current driver version is the same.
+
+    .EXAMPLE
+        Get-HPDrivers -OsVersion '22H2'
+
+        Show a list of available drivers that match the current platform and Windows 22H2. The selected drivers will be installed automatically.
+
     #>
 
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $false)] [switch]$NoPrompt,
+        [Parameter(Mandatory = $false)] [string]$OsVersion,
         [Parameter(Mandatory = $false)] [switch]$ShowSoftware,
-        [Parameter(Mandatory = $false)] [switch]$DeleteInstallationFiles,
-        [Parameter(Mandatory = $false)] [switch]$UninstallHPCMSL,
         [Parameter(Mandatory = $false)] [switch]$Overwrite,
+        [Parameter(Mandatory = $false)] [switch]$BIOS,
+        [Parameter(Mandatory = $false)] [switch]$DeleteInstallationFiles,
         [Parameter(Mandatory = $false)] [switch]$SuspendBL
     )
 
     # if machine manufacturer is HP
     $Manufacturer = (Get-CimInstance -ClassName Win32_ComputerSystem).Manufacturer
     if (($Manufacturer -match "HP") -or ($Manufacturer -match "Hewlett-Packard")) {
-
-        # Obtain the current screen and sleep timeout values
-        $DisplayTimeoutDC = Get-CimInstance -Name root\cimv2\power -Class Win32_PowerSettingDataIndex | Where-Object -Property InstanceID -EQ "Microsoft:PowerSettingDataIndex\{381b4222-f694-41f0-9685-ff5bb260df2e}\DC\{3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e}"
-        $DisplayTimeoutAC = Get-CimInstance -Name root\cimv2\power -Class Win32_PowerSettingDataIndex | Where-Object -Property InstanceID -EQ "Microsoft:PowerSettingDataIndex\{381b4222-f694-41f0-9685-ff5bb260df2e}\AC\{3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e}"
-        $SleepTimeoutDC = Get-CimInstance -Name root\cimv2\power -Class Win32_PowerSettingDataIndex | Where-Object -Property InstanceID -EQ "Microsoft:PowerSettingDataIndex\{381b4222-f694-41f0-9685-ff5bb260df2e}\DC\{29f6c1db-86da-48c5-9fdb-f2b67b1f44da}"
-        $SleepTimeoutAC = Get-CimInstance -Name root\cimv2\power -Class Win32_PowerSettingDataIndex | Where-Object -Property InstanceID -EQ "Microsoft:PowerSettingDataIndex\{381b4222-f694-41f0-9685-ff5bb260df2e}\AC\{29f6c1db-86da-48c5-9fdb-f2b67b1f44da}"
-
-        # Convert this values to seconds and store them into the variables
-        $DisplayTimeoutDC = $DisplayTimeoutDC.SettingIndexValue / 60
-        $DisplayTimeoutAC = $DisplayTimeoutAC.SettingIndexValue / 60
-        $SleepTimeoutDC = $SleepTimeoutDC.SettingIndexValue / 60
-        $SleepTimeoutAC = $SleepTimeoutAC.SettingIndexValue / 60
-
-        # Set screen and sleep timeout to infinite
-        powercfg -change -monitor-timeout-dc 0
-        powercfg -change -monitor-timeout-ac 0
-        powercfg -change -standby-timeout-dc 0
-        powercfg -change -standby-timeout-ac 0
+        $DefPref = $ProgressPreference
+        $ProgressPreference = 'Continue'
+        $Error.Clear()
 
         # create path
         if (!(Test-Path -Path "C:\Temp\HPDrivers")) {
@@ -77,57 +102,97 @@ function Get-HPDrivers {
         }
         Set-Location -Path "C:\Temp\HPDrivers"
 
-        # Install HPCMSL
-        $LatestHPCMSL = (Find-Module -Name HPCMSL).Version
-        $InstalledHPCMSL = (Get-InstalledModule -Name HPCMSL -ErrorAction Ignore).Version
-        Write-Host "`nLatest HPCMSL: $LatestHPCMSL" -ForegroundColor Green
-        Write-Host "Installed HPCMSL: $InstalledHPCMSL `n" -ForegroundColor Green
-
-        if ($LatestHPCMSL -gt $InstalledHPCMSL) {
-            Install-PackageProvider -Name NuGet -Force
-            Install-Module -Name PowerShellGet -AllowClobber -Force -WarningAction Ignore
-            Start-Process -FilePath "powershell" -Wait -NoNewWindow {
-                Install-Module -Name HPCMSL -Force -AcceptLicense -Scope CurrentUser
-            }
-            Start-Sleep -Seconds 2
+        # Warn if battery is below 80%
+        $Charge = (Get-CimInstance -ClassName Win32_Battery).EstimatedChargeRemaining
+        if ($Charge -le "50") {
+            Write-Output `n
+            Write-Warning "Battery level: ${Charge}%`nPLEASE CONNECT AN AC ADAPTER`n"
         }
 
-        # Get the list of available drivers
+        $TestConn = Test-Connection "hpia.hpcloud.hp.com" -Count 2 -ErrorAction Ignore
+        if (!$TestConn) {
+            Write-Output `n
+            Write-Warning "hpia.hpcloud.hp.com is unavailable!`nPlease check your internet connection or try again later..`n"
+            Break
+        }
+
+        # Download the list of available drivers
         try {
-            if (!$ShowSoftware) { $AvailableDrivers = Get-SoftpaqList -Category BIOS, Driver }
-            if ($ShowSoftware) { $AvailableDrivers = Get-SoftpaqList -Category BIOS, Driver, Diagnostic, Dock, Software, Utility }   
+            # Check available drivers
+            if (!$OsVersion) { $OsVersion = (Get-Item "HKLM:SOFTWARE\Microsoft\Windows NT\CurrentVersion").GetValue('DisplayVersion') }
+            $Platform = (Get-CimInstance -ClassName Win32_BaseBoard).Product
+            if ((Get-CimInstance -ClassName Win32_OperatingSystem).Caption -match "10") { $OsType = "10" }
+            if ((Get-CimInstance -ClassName Win32_OperatingSystem).Caption -match "11") { $OsType = "11" }
+
+            # Download the drivers list
+            $CabUri = ("https://hpia.hpcloud.hp.com/ref/${Platform}/${Platform}_64_${OsType}.0.${OsVersion}.cab").ToLower()
+            Invoke-WebRequest -Uri $CabUri -OutFile "C:\Temp\HPDrivers\hp.cab"
+
+            $Model = (Get-CimInstance -ClassName Win32_ComputerSystem).Model
+            Write-Output `n
+            Write-Verbose "Drivers found: $Model - Windows ${OsVersion}..`n" -Verbose
         }
         catch {
-            $OsVer = (Get-Item "HKLM:SOFTWARE\Microsoft\Windows NT\CurrentVersion").GetValue('DisplayVersion')
-            Write-Host "`nHPCMSL does not yet support Windows ${OsVer}!`nIf you want to download and install drivers for an older (supported) version, please provide it below..`n" -ForegroundColor Red
-            $OsVer = Read-Host -Prompt "Please provide version (e.g. 22H2, 23H2)"
-            if (!$ShowSoftware) { $AvailableDrivers = Get-SoftpaqList -OsVer $OsVer -Category BIOS, Driver }
-            if ($ShowSoftware) { $AvailableDrivers = Get-SoftpaqList -OsVer $OsVer -Category BIOS, Driver, Diagnostic, Dock, Software, Utility }   
+            Write-Output `n
+            Write-Warning "HP does not yet support Windows ${OsVersion}!`nIf you want to download and install drivers for a different (supported) version of Windows,`nplease specify the version using the -OsVersion parameter.`n"
+            Break
         }
-   
-        # Select drivers from the list of available drivers
-        if (!$NoPrompt) { $SpList = $AvailableDrivers | Select-Object -Property id, Name, Version, Size, ReleaseDate | Out-GridView -Title "Select driver(s):" -OutputMode Multiple }
-        if ($NoPrompt) { $SpList = $AvailableDrivers }
 
-        # Show list of available drivers
-        if ($SpList) {
-            Write-Host "`nThe script will install the following drivers. Please wait..`n" -ForegroundColor White -BackgroundColor DarkGreen
-            $SpList | Select-Object -Property id, Name, Version, Size, ReleaseDate | Format-Table -AutoSize
+        # Expand hp.cab and load HPDrivers.xml file
+        if (Test-Path -Path "C:\Temp\HPDrivers\hp.cab") {
+            Start-Process -FilePath "powershell" -Wait -WindowStyle Hidden {
+                expand C:\Temp\HPDrivers\hp.cab C:\Temp\HPDrivers\HpDrivers.xml
+            }
+            Remove-Item -Path "C:\Temp\HPDrivers\hp.cab" -Force
+            [XML]$Xml = Get-Content -Path "C:\Temp\HPDrivers\HpDrivers.xml"
         }
+
+        # Sort the driver list
+        # 'Driverpack' = $Xml.ImagePal.Solutions.UpdateInfo | Where-Object { $_.Category -match 'Driverpack' }
+        # 'UWPPack' = $Xml.ImagePal.Solutions.UpdateInfo | Where-Object { $_.Category -match 'UWPPack' }
+        # 'Software' = $Xml.ImagePal.Solutions.UpdateInfo | Where-Object { $_.Category -match 'Software -' }
+        $Category = New-Object -Type PSObject @{
+            'BIOS'       = $Xml.ImagePal.Solutions.UpdateInfo | Where-Object { $_.Category -match 'BIOS' }
+            'Driver'     = $Xml.ImagePal.Solutions.UpdateInfo | Where-Object { $_.Category -match 'Driver -' }
+            'Diagnostic' = $Xml.ImagePal.Solutions.UpdateInfo | Where-Object { $_.Category -match 'Diagnostic' }
+            'Utility'    = $Xml.ImagePal.Solutions.UpdateInfo | Where-Object { $_.Category -match 'Utility -' }
+            'Dock'       = $Xml.ImagePal.Solutions.UpdateInfo | Where-Object { $_.Category -match 'Dock -' }
+        }
+
+        # Select category
+        if (!$ShowSoftware) { $AvailableDrivers = $Category.Driver }
+        if ($ShowSoftware) { $AvailableDrivers = $Category.Driver + $Category.Software + $Category.Diagnostic + $Category.Utility + $Category.Dock }
+        if ($BIOS) { $AvailableDrivers += $Category.BIOS }
+
+        # Select drivers from the list of available drivers
+        if (!$NoPrompt) { $SpList = $AvailableDrivers | Select-Object -Property id, Name, Category, Version, Size, DateReleased | Out-GridView -Title "Select driver(s):" -OutputMode Multiple }
+        if ($NoPrompt) { $SpList = $AvailableDrivers }
 
         $Date = Get-Date -Format "dd.MM.yyyy"
         $HR = "-" * 100
         $Line = $Date + " " + $HR
         $Line | Out-File -FilePath "C:\Temp\InstalledHPDrivers.log" -Append
 
+        # Show list of available drivers
+        if ($SpList) {
+            Write-Verbose "The script will install the following drivers. Please wait..`n" -Verbose
+            $SpList | Select-Object -Property Id, Name, Version, Size, DateReleased | Format-Table -AutoSize
+        }
+
         # download and install selected drivers
         foreach ($Number in $SpList.id) {
-            $AvailableSpVersion = Get-SoftpaqMetadata -Number $Number | Out-SoftpaqField -Field Version
-            $InstalledSpVersion = 0
+
+            # Obtain information about the actual installed driver
+            $Name = ($Xml.ImagePal.Solutions.UpdateInfo | Where-Object { $_.Id -eq $Number }).Name
+            $Source = ($Xml.ImagePal.Solutions.UpdateInfo | Where-Object { $_.Id -eq $Number }).Url
+            $SilentInstall = ($Xml.ImagePal.Solutions.UpdateInfo | Where-Object { $_.Id -eq $Number }).SilentInstall
+            $AvailableSpVersion = ($Xml.ImagePal.Solutions.UpdateInfo | Where-Object { $_.Id -eq $Number }).Version
 
             # Get the version of the installed softpaq package
+            $InstalledSpVersion = 0
+
             if (!$Overwrite) {
-                $CvaFile = Get-ChildItem -Path "C:\SWSetup\$Number" -Filter "*.cva" -Recurse
+                $CvaFile = Get-ChildItem -Path "C:\SWSetup\$Number" -Filter "*.cva" -Recurse -ErrorAction Ignore
                 if ($CvaFile) {
                     $CvaContent = Get-Content -Path $CvaFile.VersionInfo.FileName
                     $InstalledSpVersion = ($CvaContent | Select-String -Pattern "^VendorVersion").ToString().Split('=')[1]
@@ -138,32 +203,85 @@ function Get-HPDrivers {
                 }
             }
 
-            # Install selected packages - do not overwrite
+            # if a new driver version is available
             if ($AvailableSpVersion -gt $InstalledSpVersion) {
+
                 try {
-                    Get-Softpaq -Number $Number -Action silentinstall -MaxRetries 2
-                    $AvailableSpVersion | Out-File -FilePath "C:\SWSetup\$Number\version.txt"
+                    # Download file
+                    Start-BitsTransfer -Source "https://${Source}" -Destination "C:\Temp\HPDrivers" -DisplayName "Downloading:" -Description $Name
 
-                    $Info = Get-SoftpaqMetadata -Number $Number | Out-SoftpaqField -Field Title
-                    $DateTime = Get-Date -Format "dd.MM.yyyy HH:mm"
-                    "$DateTime - $Number - $Info - $AvailableSpVersion" | Out-File -FilePath "C:\Temp\InstalledHPDrivers.log" -Append
+                    # Checksum
+                    $SPFileExist = Test-Path -Path "C:\Temp\HPDrivers\${Number}.exe"
+                    $SPFileChecksum = (Get-FileHash -Path "C:\Temp\HPDrivers\${Number}.exe" -Algorithm SHA256).Hash
+                    $OryginalChecksum = ($AvailableDrivers | Where-Object { $_.Id -eq $Number }).SHA256
 
-                    $Info += ' - ' + $Number + ' - INSTALLED'
-                    Write-Host $Info -ForegroundColor Green
+                    if (!$SPFileExist -or ($SPFileChecksum -ne $OryginalChecksum)) {
+                        $ThrowMessage = "${Number}.exe - " + $Name + " - Checksum Error!"
+                        throw $ThrowMessage
+                    }
+
+                    # Installation process
+                    $SetupFile = $SilentInstall.Split()[0].Trim('"')
+                    $SetupCommand = $SilentInstall.Split()[0]
+                    $Param = $SilentInstall.Replace($SetupCommand, '')
+
+                    # Setup.exe files with a special params
+                    if ($Param) {
+                        Start-Process -FilePath "C:\Temp\HpDrivers\$Number" -Wait -ArgumentList "/s /e /f C:\SWSetup\$Number"
+                        Start-Process -FilePath "C:\SWSetup\$Number\$SetupFile" -Wait -ArgumentList $Param
+                    }
+
+                    # CMD Wrapper, HPUP and other installers
+                    if (!$Param) {
+                        Start-Process -FilePath "C:\Temp\HpDrivers\${Number}.exe" -Wait -ArgumentList "/s /f C:\SWSetup\$Number"
+                    }
+
+                    # Save file with installd version
+                    if (Test-Path -Path "C:\SWSetup\$Number") {
+                        $AvailableSpVersion | Out-File -FilePath "C:\SWSetup\$Number\version.txt"
+                    }
+
+                    $Info = New-Object -Type PSObject -Property @{
+                        'Id'      = $Number
+                        'Name'    = $Name
+                        'Version' = $AvailableSpVersion
+                        'Status'  = "Installed"
+                    }
+                    $Info | Select-Object -Property Id, Name, Version, Status
+
+                    WriteToHPDriversLog
+                    Start-Sleep -Seconds 5
                 }
 
                 catch {
-                    $Info = Get-SoftpaqMetadata -Number $Number | Out-SoftpaqField -Field Title
-                    $Info += ' - ' + $Number + ' - FAILED!'
-                    Write-Host $Info -ForegroundColor Red
+                    $Info = New-Object -Type PSObject -Property @{
+                        'Id'      = $Number
+                        'Name'    = $Name
+                        'Version' = $AvailableSpVersion
+                        'Status'  = "Failed"
+                    }
+                    $Info | Select-Object -Property Id, Name, Version, Status
+
+                    WriteToHPDriversLog
                 }
             }
 
-            else {
-                $AvailableSpVersion | Out-File -FilePath "C:\SWSetup\$Number\version.txt"
-                $Info = Get-SoftpaqMetadata -Number $Number | Out-SoftpaqField -Field Title
-                $Info += ' - ' + $Number + ' - LATEST VERSION ALREADY INSTALLED'
-                Write-Host $Info -ForegroundColor Blue
+            # if the driver is up to date
+            if ($AvailableSpVersion -le $InstalledSpVersion) {
+                # Save file with installd version
+                if (Test-Path -Path "C:\SWSetup\$Number") {
+                    $AvailableSpVersion | Out-File -FilePath "C:\SWSetup\$Number\version.txt"
+                }
+
+                $Info = New-Object -Type PSObject -Property @{
+                    'Id'      = $Number
+                    'Name'    = $Name
+                    'Version' = $AvailableSpVersion
+                    'Status'  = "Already Installed"
+                }
+                $Info | Select-Object -Property Id, Name, Version, Status
+
+                WriteToHPDriversLog
             }
         }
 
@@ -173,24 +291,12 @@ function Get-HPDrivers {
             Remove-Item -Path "C:\Temp\HPDrivers" -Recurse -Force
         }
 
-        # uninstall HP Client Management Script Library
-        $HPCMSL = Get-InstalledModule -Name HPCMSL -ErrorAction Ignore
-        if ($UninstallHPCMSL -and $HPCMSL) {
-            Write-Host "`nUninstalling HPCMSL..`n" -ForegroundColor Green
-            Get-InstalledModule -Name HPCMSL | Uninstall-Module -Force -Verbose
-            Get-InstalledModule -Name "HP.*" | Uninstall-Module -Force -Verbose
-        }
-
         # disable BitLocker pin for one restart (BIOS update)
         if ($SuspendBL -and ((Get-BitLockerVolume -MountPoint "C:").VolumeStatus -ne "FullyDecrypted")) {
             Suspend-BitLocker -MountPoint "C:" -RebootCount 1
         }
 
-        # Revert to the previous (user) values
-        powercfg -change -monitor-timeout-dc $DisplayTimeoutDC
-        powercfg -change -monitor-timeout-ac $DisplayTimeoutAC
-        powercfg -change -standby-timeout-dc $SleepTimeoutDC
-        powercfg -change -standby-timeout-ac $SleepTimeoutAC
+        $ProgressPreference = $DefPref
     }
 }
 Export-ModuleMember -Function Get-HPDrivers
