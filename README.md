@@ -15,7 +15,7 @@ Update all HP device drivers with a single command: `Get-HPDrivers`
 
 ## Release Notes
 
-v1.4.2
+v1.4.3
 - Added search for latest drivers even if available driver version on HP servers is older than current Windows version (for older computers)
 - Added HP software (e.g. dock firmware, manageability, diagnostic) to -ShowSoftware parameter
 - Added max 5 driver download attempts in case of failure

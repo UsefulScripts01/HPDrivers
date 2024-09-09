@@ -12,7 +12,7 @@
 RootModule = 'HPDrivers.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.4.2'
+ModuleVersion = '1.4.3'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -150,7 +150,7 @@ Get-HPDrivers -OsVersion 22H2
 Show a list of available drivers that match the current platform and Windows 22H2. The selected drivers will be installed automatically.
 
 
-## v1.4.2
+## v1.4.3
 - Added search for latest drivers even if available driver version on HP servers is older than current Windows version (for older computers)
 - Added HP software (e.g. dock firmware, manageability, diagnostic) to -ShowSoftware parameter
 - Added max 5 driver download attempts in case of failure
