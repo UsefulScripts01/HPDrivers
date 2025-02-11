@@ -254,7 +254,9 @@ function Get-HPDrivers {
         }
 
         # Select drivers from the list of available drivers
-        if (!$NoPrompt) {
+        if (!$NoPrompt -and !$NoGrpahics ) {
+            $SpList = $AvailableDrivers | Where-Object {-Not ($_.Name.Contains("Graphics"))} | Select-Object -Property id, Name, Category, Version, Size, DateReleased | Out-GridView -Title "Select driver(s):" -OutputMode Multiple
+        } ElseIf (!$NoPrompt -and !$NoGrpahics) {
             $SpList = $AvailableDrivers | Select-Object -Property id, Name, Category, Version, Size, DateReleased | Out-GridView -Title "Select driver(s):" -OutputMode Multiple
         }
 
@@ -262,7 +264,7 @@ function Get-HPDrivers {
         # -NoPrompt
         if ($NoPrompt -and !$NoGraphics) {
             $SpList = $AvailableDrivers
-        } ElseIf (NoPrompt -and $NoGraphics) {
+        } ElseIf ($NoPrompt -and $NoGraphics) {
             $SpList = $AvailableDrivers | Where-Object {-Not ($_.Name.Contains("Graphics"))}
         }
 
