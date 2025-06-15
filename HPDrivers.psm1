@@ -109,6 +109,7 @@ function Get-HPDrivers {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $false)] [switch]$NoPrompt,
+        [Parameter(Mandatory = $false)] [switch]$NoGraphics,
         [Parameter(Mandatory = $false)] [string]$OsVersion,
         [Parameter(Mandatory = $false)] [switch]$ShowSoftware,
         [Parameter(Mandatory = $false)] [switch]$Overwrite,
@@ -253,14 +254,18 @@ function Get-HPDrivers {
         }
 
         # Select drivers from the list of available drivers
-        if (!$NoPrompt) {
+        if (!$NoPrompt -and !$NoGrpahics ) {
+            $SpList = $AvailableDrivers | Where-Object {-Not ($_.Name.Contains("Graphics"))} | Select-Object -Property id, Name, Category, Version, Size, DateReleased | Out-GridView -Title "Select driver(s):" -OutputMode Multiple
+        } ElseIf (!$NoPrompt -and !$NoGrpahics) {
             $SpList = $AvailableDrivers | Select-Object -Property id, Name, Category, Version, Size, DateReleased | Out-GridView -Title "Select driver(s):" -OutputMode Multiple
         }
 
         # Select all drivers without prompt
         # -NoPrompt
-        if ($NoPrompt) {
+        if ($NoPrompt -and !$NoGraphics) {
             $SpList = $AvailableDrivers
+        } ElseIf ($NoPrompt -and $NoGraphics) {
+            $SpList = $AvailableDrivers | Where-Object {-Not ($_.Name.Contains("Graphics"))}
         }
 
         # Insert a line to the log file
@@ -272,7 +277,7 @@ function Get-HPDrivers {
         # Show list of available drivers
         if ($SpList) {
             Write-Verbose "The script will install the following drivers. Please wait..`n" -Verbose
-            $SpList | Select-Object -Property Id, Name, Version, Size, DateReleased | Format-Table -AutoSize
+            $SpList |  Select-Object -Property Id, Name, Version, Size, DateReleased | Format-Table -AutoSize
         }
         if ($BadLinks) {
             Write-Warning "The following drivers are not available on the HP server `n"
