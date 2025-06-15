@@ -141,8 +141,8 @@ function Get-HPDrivers {
         $TestConn = Test-Connection "hpia.hpcloud.hp.com" -Count 2 -ErrorAction Ignore
         if (!$TestConn) {
             Write-Output `n
-            Write-Warning "hpia.hpcloud.hp.com is unavailable!`nPlease check your internet connection or try again later..`n"
-            Break
+            Write-Warning "hpia.hpcloud.hp.com is could be unavailable!`nScript will still try incase SNMP traffic is blocked..`n"
+            #Break
         }
 
         # warn if battery charge drops below 50%
